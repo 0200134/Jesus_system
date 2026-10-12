@@ -9,7 +9,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 @Component
-publiic class JesusFileIoAndDiskGuardService {
+public class JesusFileIoAndDiskGuardService {
 
     private static final long MIN_REQUIRED_FREE_SPACE_BYTES = 500L * 1024 * 1024; // 최소 500MB 여유 공간 강제 확보
     private int ioFailureCount = 0;
