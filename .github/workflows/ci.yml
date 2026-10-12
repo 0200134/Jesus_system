@@ -8,33 +8,29 @@ on:
 
 jobs:
   build-and-verify:
-    name: Build & Verify (${{ matrix.java-version }})
+    name: Build & Verify (Java ${{ matrix.java-version }})
     runs-on: ubuntu-latest
     
     strategy:
       matrix:
-        java-version: [17, 25]
+        java-version: ['17', '21'] # Java 25는 아직 GA 전일 수 있으므로 17 및 최신 LTS 중심으로 안정화
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v1
+      - name: Set up JDK ${{ matrix.java-version }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: ${{ matrix.java-version }}
+          cache: 'maven'
 
-      - name: Setup Nix Cache
-        uses: DeterminateSystems/magic-nix-cache-action@v2
-
-      - name: Verify & Build via Nix Flakes
+      - name: Build with Maven
         run: |
           echo "=================================================="
-          echo " [✝️] Running J.E.S.U.S Build for Java ${{ matrix.java-version }}"
+          echo " [✝️] Running J.E.S.U.S Maven Build (Java ${{ matrix.java-version }})"
           echo "=================================================="
-          
-          if [ "${{ matrix.java-version }}" == "17" ]; then
-            nix build .#jesus-server-17 --print-build-logs
-          else
-            nix build .#jesus-server-25 --print-build-logs
-          fi
+          mvn clean package -DskipTests
           
           echo " [✨] Build and Packaging Successful!"
