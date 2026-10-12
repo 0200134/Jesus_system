@@ -1,0 +1,40 @@
+name: J.E.S.U.S CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-verify:
+    name: Build & Verify (${{ matrix.java-version }})
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        java-version: [17, 25]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v1
+
+      - name: Setup Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v2
+
+      - name: Verify & Build via Nix Flakes
+        run: |
+          echo "=================================================="
+          echo " [✝️] Running J.E.S.U.S Build for Java ${{ matrix.java-version }}"
+          echo "=================================================="
+          
+          if [ "${{ matrix.java-version }}" == "17" ]; then
+            nix build .#jesus-server-17 --print-build-logs
+          else
+            nix build .#jesus-server-25 --print-build-logs
+          fi
+          
+          echo " [✨] Build and Packaging Successful!"
