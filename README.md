@@ -39,17 +39,28 @@ Jesus_system/
 ├── pom.xml                            # Maven 표준 빌드 설정 (Spring Boot 3.3.0)
 └── src/
     └── main/
-        └── java/
-            └── com/
-                └── jesus/
-                    └── system/
-                        ├── JesusApplication.java             # 부트스트랩 메인
-                        ├── JesusWatchdogAgent.java           # 프로세스 생체 감시 & 사출 코어
-                        ├── JesusHealthIndicator.java         # 액추에이터 헬스 연동
-                        ├── JesusCommandController.java       # 긴급 수동 제어 REST API
-                        ├── JesusEgovWatchdogService.java     # eGovFrame DB 및 WAS 복합 검증
-                        ├── JesusJvmDiagnosticsService.java   # JVM 힙 및 데드락 선제 방어
-                        └── JesusFileIoAndDiskGuardService.java # 디스크 I/O 및 Read-Only 락 가드
+        ├── java/com/jesus/system/
+        │   ├── JesusApplication.java              # 부트스트랩 메인
+        │   ├── JesusWatchdogAutoConfiguration.java # 스프링 부트 스타터 자동 설정
+        │   ├── config/
+        │   │   └── WatchdogProperties.java        # jesus.watchdog.* 외부화 설정
+        │   ├── core/
+        │   │   ├── ProcessLifecycleManager.java   # 사출(Eject) & Nix 부활 단일 코어
+        │   │   └── VitalsRegistry.java            # 모니터 생체 신호 레지스트리
+        │   ├── monitor/
+        │   │   ├── WatchdogAgent.java             # 0.5초 액추에이터 헬스 핑 & 사출 루프
+        │   │   ├── AbyssProbeMonitor.java         # Raw TCP 소켓 저수준 프로브
+        │   │   ├── EgovWatchdogMonitor.java       # eGovFrame DB & WAS 복합 검증
+        │   │   ├── JvmDiagnosticsMonitor.java     # JVM 힙 & 데드락 선제 방어
+        │   │   ├── DiskIoGuardMonitor.java        # 디스크 I/O & Read-Only 락 가드
+        │   │   └── HttpVitalsProbe.java           # 공용 HTTP 생존 프로브
+        │   ├── api/
+        │   │   └── WatchdogCommandController.java # 긴급 수동 제어 REST API
+        │   └── health/
+        │       └── WatchdogHealthIndicator.java   # 실제 생체 신호 기반 헬스 인디케이터
+        └── resources/
+            ├── application.yml                    # 서버 포트(9090) 및 워치독 임계치 설정
+            └── META-INF/spring/                   # 스타터 모드 자동 설정 등록
 
 
 
@@ -66,7 +77,7 @@ nix develop
 2. Maven 로컬 빌드 및 패키징
 
 
-mvn clean package -DskipTests
+mvn clean verify
 
 
 
@@ -74,6 +85,47 @@ mvn clean package -DskipTests
 
 
 mvn spring-boot:run
+
+
+
+📦 기존 Spring 앱에 적용 (Adoptable Starter 모드)
+
+
+다른 Spring Boot 3 애플리케이션(예: 현대화된 eGovFrame 서비스)에 의존성 하나로 워치독 전체를 코어 내부에 내장할 수 있습니다:
+
+
+<dependency>
+    <groupId>com.jesus.system</groupId>
+    <artifactId>jesus-watchdog-agent</artifactId>
+    <version>1.0.0</version>
+</dependency>
+
+
+클래스패스에 추가되는 것만으로 모든 모니터·헬스 인디케이터·REST API가 자동 등록됩니다. 비활성화는 jesus.watchdog.enabled=false.
+
+
+⚠️ javax.* 시대의 구형 eGovFrame(Spring Boot 2.x)에는 Jakarta 네임스페이스 충돌로 직접 내장 불가 — 그 경우 지금처럼 독립 실행(사이드카) 모드로 구동하세요.
+
+
+
+🧪 Test & Formal Verification (Nix)
+
+
+1. 재현 가능한 Nix 환경 내부에서 전체 테스트 스위트 실행
+
+
+nix develop -c mvn clean verify
+
+
+
+2. 배포 아티팩트를 순수 Nix Derivation으로 빌드 (의존성 해시 고정, 오프라인 빌드)
+
+
+nix build .#jesus-server-17
+
+
+
+ℹ️ 최초 nix build는 mvnHash 불일치 오류로 실패합니다 — 오류 메시지에 출력된 해시를 flake.nix의 mvnHash에 붙여넣고 재실행하세요. 이후 빌드는 완전히 재현 가능합니다.
 
 
 

@@ -39,18 +39,28 @@ Jesus_system/
 ├── pom.xml                            # Maven standard build config (Spring Boot 3.3.0)
 └── src/
     └── main/
-        └── java/
-            └── com/
-                └── jesus/
-                    └── system/
-                        ├── JesusApplication.java             # Bootstrap Main
-                        ├── JesusWatchdogAgent.java           # Process Vitals & Excision Core
-                        ├── JesusHealthIndicator.java         # Actuator Health Integration
-                        ├── JesusCommandController.java       # Emergency Manual Control REST API
-                        ├── JesusAbyssProbeComponent.java     # Raw TCP Socket Low-Level Probe
-                        ├── JesusEgovWatchdogService.java     # eGovFrame DB & WAS Dual Verification
-                        ├── JesusJvmDiagnosticsService.java   # JVM Heap & Deadlock Preemption Guard
-                        └── JesusFileIoAndDiskGuardService.java # Disk I/O & Read-Only Lock Guard
+        ├── java/com/jesus/system/
+        │   ├── JesusApplication.java              # Bootstrap Main
+        │   ├── JesusWatchdogAutoConfiguration.java # Spring Boot Starter Auto-Configuration
+        │   ├── config/
+        │   │   └── WatchdogProperties.java        # Externalized jesus.watchdog.* settings
+        │   ├── core/
+        │   │   ├── ProcessLifecycleManager.java   # Single Eject & Nix Resurrection Core
+        │   │   └── VitalsRegistry.java            # Shared Monitor Vitals Registry
+        │   ├── monitor/
+        │   │   ├── WatchdogAgent.java             # 0.5s Actuator Ping & Ejection Loop
+        │   │   ├── AbyssProbeMonitor.java         # Raw TCP Socket Low-Level Probe
+        │   │   ├── EgovWatchdogMonitor.java       # eGovFrame DB & WAS Dual Verification
+        │   │   ├── JvmDiagnosticsMonitor.java     # JVM Heap & Deadlock Preemption Guard
+        │   │   ├── DiskIoGuardMonitor.java        # Disk I/O & Read-Only Lock Guard
+        │   │   └── HttpVitalsProbe.java           # Shared HTTP Vitals Probe
+        │   ├── api/
+        │   │   └── WatchdogCommandController.java # Emergency Manual Control REST API
+        │   └── health/
+        │       └── WatchdogHealthIndicator.java   # Health Indicator Backed by Real Vitals
+        └── resources/
+            ├── application.yml                    # Server port (9090) & watchdog thresholds
+            └── META-INF/spring/                   # Auto-configuration registration (starter mode)
 
 
 
@@ -67,7 +77,7 @@ nix develop
 2. Local Maven Build & Packaging
 
 
-mvn clean package -DskipTests
+mvn clean verify
 
 
 
@@ -75,6 +85,47 @@ mvn clean package -DskipTests
 
 
 mvn spring-boot:run
+
+
+
+📦 Adopting into an Existing Spring App (Starter Mode)
+
+
+Any Spring Boot 3 application (e.g. a modernized eGovFrame service) can embed the full watchdog into its core with a single dependency:
+
+
+<dependency>
+    <groupId>com.jesus.system</groupId>
+    <artifactId>jesus-watchdog-agent</artifactId>
+    <version>1.0.0</version>
+</dependency>
+
+
+Just having it on the classpath auto-registers every monitor, the health indicator, and the REST API. Disable anytime with jesus.watchdog.enabled=false.
+
+
+⚠️ javax-era eGovFrame (Spring Boot 2.x) hosts cannot embed it directly due to the Jakarta namespace split — keep running the watchdog in standalone (sidecar) mode for those systems.
+
+
+
+🧪 Test & Formal Verification (Nix)
+
+
+1. Run the full test suite inside the reproducible Nix environment
+
+
+nix develop -c mvn clean verify
+
+
+
+2. Build the deployment artifact as a pure Nix derivation (offline, hash-pinned dependencies)
+
+
+nix build .#jesus-server-17
+
+
+
+ℹ️ The first nix build fails with an mvnHash mismatch error — paste the printed hash into flake.nix (mvnHash = "...") and re-run. From then on the build is fully reproducible.
 
 
 

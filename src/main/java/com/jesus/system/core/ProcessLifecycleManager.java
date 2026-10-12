@@ -1,0 +1,123 @@
+package com.jesus.system.core;
+
+import com.jesus.system.config.WatchdogProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+/**
+ * Single place that knows how to eject (SIGKILL) a frozen legacy target
+ * and resurrect it as a pristine Nix artifact.
+ *
+ * <p>Replaces the eject/resurrect logic previously copy-pasted across
+ * every watchdog service, and guards against concurrent monitors stacking
+ * duplicate resurrections.
+ */
+@Component
+public class ProcessLifecycleManager {
+
+    private static final Logger log = LoggerFactory.getLogger(ProcessLifecycleManager.class);
+
+    private final WatchdogProperties properties;
+    private final AtomicBoolean resurrectionGuard = new AtomicBoolean(false);
+
+    public ProcessLifecycleManager(WatchdogProperties properties) {
+        this.properties = properties;
+    }
+
+    /**
+     * Full J.E.S.U.S protocol: terminate every matching target process, then respawn via Nix.
+     */
+    public EjectionReport ejectAndResurrect(String reason) {
+        int terminated = ejectTargetProcesses(reason);
+        boolean respawned = resurrect();
+        return new EjectionReport(reason, terminated, respawned, Instant.now());
+    }
+
+    /**
+     * Forcibly terminate all target legacy processes.
+     *
+     * @return number of processes terminated
+     */
+    public int ejectTargetProcesses(String reason) {
+        List<ProcessHandle> targets = findTargetProcesses();
+        targets.forEach(process -> {
+            log.warn("[🗡️ EJECT] Terminating PID {} [reason: {}]", process.pid(), reason);
+            process.destroyForcibly();
+        });
+        return targets.size();
+    }
+
+    /**
+     * Respawn the target through the Nix flake. Guarded so simultaneous
+     * triggers from several monitors cannot stack duplicate instances.
+     *
+     * @return true if a respawn was actually triggered
+     */
+    public boolean resurrect() {
+        if (!resurrectionGuard.compareAndSet(false, true)) {
+            log.info("[⚡ RESURRECT] Resurrection already in progress, skipping duplicate trigger.");
+            return false;
+        }
+        try {
+            log.info("[⚡ RESURRECT] Spawning fresh instance via Nix: {}", properties.getNixRunTarget());
+            new ProcessBuilder("nix", "run", properties.getNixRunTarget())
+                    .redirectErrorStream(true)
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .start();
+            log.info("[✨] Resurrection trigger dispatched successfully.");
+            return true;
+        } catch (IOException e) {
+            log.error("[💥 CRITICAL] Failed to resurrect target via Nix: {}", e.getMessage());
+            return false;
+        } finally {
+            resurrectionGuard.set(false);
+        }
+    }
+
+    public List<ProcessHandle> findTargetProcesses() {
+        return ProcessHandle.allProcesses()
+                .filter(this::isTargetProcess)
+                .toList();
+    }
+
+    private boolean isTargetProcess(ProcessHandle process) {
+        // Defensive: the watchdog must never kill its own JVM.
+        if (process.pid() == ProcessHandle.current().pid()) {
+            return false;
+        }
+        return matchesTarget(
+                process.info().command().orElse(""),
+                process.info().arguments().orElse(new String[0]),
+                properties.getProcessCommandKeyword(),
+                properties.getTargetProcessKeywords());
+    }
+
+    /**
+     * Pure, package-visible matcher so the process targeting rules are
+     * unit-testable without touching real system processes.
+     */
+    static boolean matchesTarget(String command, String[] arguments,
+                                 String commandKeyword, List<String> targetKeywords) {
+        String normalizedCommand = (command == null ? "" : command).toLowerCase(Locale.ROOT);
+        String normalizedArguments = String.join(" ", arguments == null ? new String[0] : arguments)
+                .toLowerCase(Locale.ROOT);
+        return normalizedCommand.contains(commandKeyword.toLowerCase(Locale.ROOT))
+                && targetKeywords.stream()
+                        .map(keyword -> keyword.toLowerCase(Locale.ROOT))
+                        .anyMatch(normalizedArguments::contains);
+    }
+
+    public record EjectionReport(
+            String reason,
+            int processesTerminated,
+            boolean resurrectionTriggered,
+            Instant timestamp) {
+    }
+}

@@ -28,11 +28,11 @@ jobs:
           mvn -version
           java -version
 
-      - name: Build with Maven
+      - name: Build & Test with Maven
         run: |
           echo "=================================================="
-          echo " [✝️] Running J.E.S.U.S Maven Build (Java 17)"
+          echo " [✝️] Running J.E.S.U.S Maven Verify (Java 17)"
           echo "=================================================="
-          mvn clean package -DskipTests
-          
-          echo " [✨] Build and Packaging Successful!"
+          mvn clean verify
+
+          echo " [✨] Build, Packaging & Tests Successful!"

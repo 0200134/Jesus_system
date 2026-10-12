@@ -11,6 +11,30 @@
       forEachSystem = f: nixpkgs.lib.genAttrs supportedSystems (system: f {
         pkgs = import nixpkgs { inherit system; };
       });
+
+      # Reproducibility hash of the vendored Maven dependency repository
+      # (fixed-output derivation → no network access during the actual build).
+      # If it mismatches, Nix prints the correct hash in the build error — paste it here.
+      mvnHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+
+      # Shared builder: bit-reproducible Maven build with hash-pinned dependencies.
+      buildJesusServer = { pkgs, jdk, pname }:
+        pkgs.maven.buildMavenPackage {
+          inherit pname;
+          version = "1.0.0";
+          src = ./.;
+          mvnJdk = jdk;
+          inherit mvnHash;
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+          installPhase = ''
+            mkdir -p $out/bin $out/share
+            cp target/*-exec.jar $out/share/app.jar
+            makeWrapper ${jdk}/bin/java $out/bin/run-jesus \
+              --add-flags "-jar $out/share/app.jar"
+          '';
+          # Enables `nix run .#<pname-suffix>` used by the resurrection protocol.
+          meta.mainProgram = "run-jesus";
+        };
     in {
       # 1. 멀티 플랫폼 로컬 개발 및 관리 셸 (devShells)
       devShells = forEachSystem ({ pkgs }: {
@@ -39,33 +63,8 @@
 
       # 2. 멀티OS / 멀티버전 배포 아티팩트 빌드 (Packages)
       packages = forEachSystem ({ pkgs }: {
-        jesus-server-17 = pkgs.stdenv.mkDerivation {
-          pname = "jesus-system-jdk17";
-          version = "1.0.0";
-          src = ./.;
-          buildInputs = [ pkgs.jdk17 pkgs.maven ];
-          buildPhase = "mvn clean package -DskipTests";
-          installPhase = ''
-            mkdir -p $out/bin $out/share
-            cp target/*.jar $out/share/app.jar
-            echo "java -jar $out/share/app.jar" > $out/bin/run-jesus.bat
-            chmod +x $out/bin/run-jesus.bat
-          '';
-        };
-
-        jesus-server-25 = pkgs.stdenv.mkDerivation {
-          pname = "jesus-system-jdk25";
-          version = "1.0.0";
-          src = ./.;
-          buildInputs = [ pkgs.jdk25 pkgs.maven ];
-          buildPhase = "mvn clean package -DskipTests";
-          installPhase = ''
-            mkdir -p $out/bin $out/share
-            cp target/*.jar $out/share/app.jar
-            echo "java -jar $out/share/app.jar" > $out/bin/run-jesus.bat
-            chmod +x $out/bin/run-jesus.bat
-          '';
-        };
+        jesus-server-17 = buildJesusServer { inherit pkgs; jdk = pkgs.jdk17; pname = "jesus-system-jdk17"; };
+        jesus-server-25 = buildJesusServer { inherit pkgs; jdk = pkgs.jdk25; pname = "jesus-system-jdk25"; };
       });
     };
 }
