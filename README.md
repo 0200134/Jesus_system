@@ -1,3 +1,5 @@
+compatible  with:  https://www.egovframe.go.kr/home/sub.do?menuNo=107
+
 
 # ✝️ J.E.S.U.S (Java Ejectable Survival Unlimited Sustainable System)
 
