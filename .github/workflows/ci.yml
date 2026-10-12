@@ -8,28 +8,30 @@ on:
 
 jobs:
   build-and-verify:
-    name: Build & Verify (Java ${{ matrix.java-version }})
+    name: Build & Verify (Java 17)
     runs-on: ubuntu-latest
     
-    strategy:
-      matrix:
-        java-version: ['17', '21'] # Java 25는 아직 GA 전일 수 있으므로 17 및 최신 LTS 중심으로 안정화
-
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK ${{ matrix.java-version }}
+      - name: Set up JDK & Maven
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: ${{ matrix.java-version }}
+          java-version: '17'
+          maven-version: '3.9.6'
           cache: 'maven'
+
+      - name: Verify Maven & Java Version
+        run: |
+          mvn -version
+          java -version
 
       - name: Build with Maven
         run: |
           echo "=================================================="
-          echo " [✝️] Running J.E.S.U.S Maven Build (Java ${{ matrix.java-version }})"
+          echo " [✝️] Running J.E.S.U.S Maven Build (Java 17)"
           echo "=================================================="
           mvn clean package -DskipTests
           
