@@ -1,3 +1,4 @@
+
 # ✝️ J.E.S.U.S (Java Ejectable Survival Unlimited Sustainable System)
 
 > **"구형 공공 레거시와 뻗어버린 엔터프라이즈 시스템을 위한 궁극의 자가 치유(Self-Healing) 수호자 에이전트"**
@@ -47,3 +48,39 @@ Jesus_system/
                         ├── JesusEgovWatchdogService.java     # eGovFrame DB 및 WAS 복합 검증
                         ├── JesusJvmDiagnosticsService.java   # JVM 힙 및 데드락 선제 방어
                         └── JesusFileIoAndDiskGuardService.java # 디스크 I/O 및 Read-Only 락 가드
+
+
+
+🚀 Quick Start & Build
+
+
+1. Nix 환경 진입 (Recommended)
+
+
+nix develop
+
+
+
+2. Maven 로컬 빌드 및 패키징
+
+
+mvn clean package -DskipTests
+
+
+
+3. 애플리케이션 구동
+
+
+mvn spring-boot:run
+
+
+
+📊 CI/CD Status
+
+
+J.E.S.U.S CI/CD Pipeline
+
+
+---
+
+
