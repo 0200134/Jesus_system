@@ -24,7 +24,7 @@ class WatchdogPropertiesTest {
 
         WatchdogProperties properties = new Binder(source)
                 .bind("jesus.watchdog", WatchdogProperties.class)
-                .orElseThrow();
+                .get(); // BindResult has no no-arg orElseThrow(); get() throws if unbound
 
         assertThat(properties.getProbePort()).isEqualTo(9091);
         assertThat(properties.getHeapCriticalThreshold()).isEqualTo(0.80);
