@@ -3,9 +3,14 @@ package com.jesus.system.core;
 import com.jesus.system.config.WatchdogProperties;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class ProcessLifecycleManagerTest {
 
@@ -51,5 +56,42 @@ class ProcessLifecycleManagerTest {
         // The self-protection guard must hold on any machine, under any config.
         assertThat(manager.findTargetProcesses())
                 .noneMatch(process -> process.pid() == ProcessHandle.current().pid());
+    }
+
+    @Test
+    void preventsDuplicateResurrectionsUntilSpawnedProcessExits() {
+        CompletableFuture<Process> processExit = new CompletableFuture<>();
+        Process process = mock(Process.class);
+        when(process.onExit()).thenReturn(processExit);
+        AtomicInteger launches = new AtomicInteger();
+        ProcessLifecycleManager guardedManager = new ProcessLifecycleManager(properties, target -> {
+            launches.incrementAndGet();
+            return process;
+        });
+
+        assertThat(guardedManager.resurrect()).isTrue();
+        assertThat(guardedManager.resurrect()).isFalse();
+        assertThat(launches).hasValue(1);
+
+        processExit.complete(process);
+
+        assertThat(guardedManager.resurrect()).isTrue();
+        assertThat(launches).hasValue(2);
+    }
+
+    @Test
+    void releasesResurrectionGuardWhenProcessCannotStart() {
+        AtomicInteger launches = new AtomicInteger();
+        ProcessLifecycleManager retryingManager = new ProcessLifecycleManager(properties, target -> {
+            if (launches.getAndIncrement() == 0) {
+                throw new IOException("Nix unavailable");
+            }
+            Process process = mock(Process.class);
+            when(process.onExit()).thenReturn(new CompletableFuture<>());
+            return process;
+        });
+
+        assertThat(retryingManager.resurrect()).isFalse();
+        assertThat(retryingManager.resurrect()).isTrue();
     }
 }

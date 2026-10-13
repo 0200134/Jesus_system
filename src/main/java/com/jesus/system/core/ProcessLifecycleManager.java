@@ -3,6 +3,7 @@ package com.jesus.system.core;
 import com.jesus.system.config.WatchdogProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -25,10 +26,20 @@ public class ProcessLifecycleManager {
     private static final Logger log = LoggerFactory.getLogger(ProcessLifecycleManager.class);
 
     private final WatchdogProperties properties;
+    private final ProcessStarter processStarter;
     private final AtomicBoolean resurrectionGuard = new AtomicBoolean(false);
 
+    @Autowired
     public ProcessLifecycleManager(WatchdogProperties properties) {
+        this(properties, target -> new ProcessBuilder("nix", "run", target)
+                .redirectErrorStream(true)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .start());
+    }
+
+    ProcessLifecycleManager(WatchdogProperties properties, ProcessStarter processStarter) {
         this.properties = properties;
+        this.processStarter = processStarter;
     }
 
     /**
@@ -55,8 +66,8 @@ public class ProcessLifecycleManager {
     }
 
     /**
-     * Respawn the target through the Nix flake. Guarded so simultaneous
-     * triggers from several monitors cannot stack duplicate instances.
+     * Respawn the target through the Nix flake. Guarded until the launched
+     * process exits so simultaneous triggers cannot stack duplicate instances.
      *
      * @return true if a respawn was actually triggered
      */
@@ -67,17 +78,14 @@ public class ProcessLifecycleManager {
         }
         try {
             log.info("[⚡ RESURRECT] Spawning fresh instance via Nix: {}", properties.getNixRunTarget());
-            new ProcessBuilder("nix", "run", properties.getNixRunTarget())
-                    .redirectErrorStream(true)
-                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                    .start();
+            Process process = processStarter.start(properties.getNixRunTarget());
+            process.onExit().whenComplete((finished, failure) -> resurrectionGuard.set(false));
             log.info("[✨] Resurrection trigger dispatched successfully.");
             return true;
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
+            resurrectionGuard.set(false);
             log.error("[💥 CRITICAL] Failed to resurrect target via Nix: {}", e.getMessage());
             return false;
-        } finally {
-            resurrectionGuard.set(false);
         }
     }
 
@@ -119,5 +127,10 @@ public class ProcessLifecycleManager {
             int processesTerminated,
             boolean resurrectionTriggered,
             Instant timestamp) {
+    }
+
+    @FunctionalInterface
+    interface ProcessStarter {
+        Process start(String nixRunTarget) throws IOException;
     }
 }

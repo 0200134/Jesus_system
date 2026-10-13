@@ -1,15 +1,20 @@
 package com.jesus.system.api;
 
+import com.jesus.system.config.WatchdogProperties;
 import com.jesus.system.core.ProcessLifecycleManager;
 import com.jesus.system.core.ProcessLifecycleManager.EjectionReport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Map;
 
 /**
@@ -26,17 +31,21 @@ public class WatchdogCommandController {
     private static final Logger log = LoggerFactory.getLogger(WatchdogCommandController.class);
 
     private final ProcessLifecycleManager lifecycleManager;
+    private final WatchdogProperties properties;
 
-    public WatchdogCommandController(ProcessLifecycleManager lifecycleManager) {
+    public WatchdogCommandController(ProcessLifecycleManager lifecycleManager, WatchdogProperties properties) {
         this.lifecycleManager = lifecycleManager;
+        this.properties = properties;
     }
 
     @PostMapping("/eject-and-resurrect")
     public ResponseEntity<Map<String, Object>> manualEjectAndResurrect(
-            @RequestParam(defaultValue = "admin-override") String authorityToken) {
+            @RequestHeader(name = "X-Watchdog-Token", required = false) String authorityToken) {
+        if (!isAuthorized(authorityToken)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid watchdog control token");
+        }
 
-        // Never log the token itself.
-        log.warn("[⚠️ EMERGENCY] Manual ejection requested via API (token length: {})", authorityToken.length());
+        log.warn("[⚠️ EMERGENCY] Authenticated manual ejection requested via API.");
 
         EjectionReport report = lifecycleManager.ejectAndResurrect("MANUAL_API_TRIGGER");
 
@@ -47,5 +56,15 @@ public class WatchdogCommandController {
                 "resurrectionTriggered", report.resurrectionTriggered(),
                 "timestamp", report.timestamp().toEpochMilli()
         ));
+    }
+
+    private boolean isAuthorized(String suppliedToken) {
+        String configuredToken = properties.getManualControlToken();
+        return suppliedToken != null
+                && configuredToken != null
+                && !configuredToken.isBlank()
+                && MessageDigest.isEqual(
+                        configuredToken.getBytes(StandardCharsets.UTF_8),
+                        suppliedToken.getBytes(StandardCharsets.UTF_8));
     }
 }
