@@ -33,7 +33,7 @@ public class EgovWatchdogMonitor {
     private final VitalsRegistry vitals;
     private final ProcessLifecycleManager lifecycleManager;
 
-    private int consecutiveFailures;
+    private final FailureCounter failures = new FailureCounter();
 
     public EgovWatchdogMonitor(WatchdogProperties properties,
                                ObjectProvider<DataSource> dataSourceProvider,
@@ -56,20 +56,20 @@ public class EgovWatchdogMonitor {
         boolean httpAlive = httpProbe.isAlive(properties.getHealthEndpoint());
 
         if (dbAlive && httpAlive) {
-            consecutiveFailures = 0;
+            failures.reset();
             vitals.reportUp(COMPONENT, "DB and WAS vitals are nominal.");
             return;
         }
 
-        int failures = ++consecutiveFailures;
+        int failureCount = failures.recordFailure();
         vitals.reportDown(COMPONENT,
                 "Health check failed (dbAlive=%s, httpAlive=%s) %d/%d"
-                        .formatted(dbAlive, httpAlive, failures, properties.getFailureThreshold()));
+                        .formatted(dbAlive, httpAlive, failureCount, properties.getFailureThreshold()));
 
-        if (failures >= properties.getFailureThreshold()) {
+        if (failures.hasReached(properties.getFailureThreshold())) {
             log.warn("[🚨 CRITICAL] eGovFrame legacy unresponsive. Executing J.E.S.U.S Ejection Protocol.");
             lifecycleManager.ejectAndResurrect("EGOV_COMPOSITE_CHECK_FAILED");
-            consecutiveFailures = 0;
+            failures.reset();
         }
     }
 
