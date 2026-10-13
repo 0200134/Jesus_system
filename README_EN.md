@@ -22,7 +22,7 @@
   * **Disk & I/O Guard**: Monitors disk space depletion and file system Read-Only lockouts (I/O deadlocks).
 * **Enterprise Observability & Override**
   * Spring Boot Actuator custom health indicator integration (`/actuator/health`).
-  * Emergency manual control REST API endpoint (`/api/jesus/eject-and-resurrect`) for administrative overrides.
+  * Emergency manual control REST API endpoint (`/api/jesus/eject-and-resurrect`) for administrative overrides. It requires the `X-Watchdog-Token` header matching `JESUS_WATCHDOG_MANUAL_CONTROL_TOKEN`; the endpoint is disabled when no token is configured.
 * **Omni-Platform Nix Flakes Arena**
   * Guarantees bit-identical isolated builds and runtime environments across Linux, macOS, and other target hosts.
 
@@ -101,7 +101,7 @@ Any Spring Boot 3 application (e.g. a modernized eGovFrame service) can embed th
 </dependency>
 
 
-Just having it on the classpath auto-registers every monitor, the health indicator, and the REST API. Disable anytime with jesus.watchdog.enabled=false.
+Just having it on the classpath auto-registers every monitor, the health indicator, and the REST API. Disable anytime with jesus.watchdog.enabled=false. Configure `JESUS_WATCHDOG_MANUAL_CONTROL_TOKEN` to enable the emergency endpoint; leave it unset to keep manual ejection disabled.
 
 
 ⚠️ javax-era eGovFrame (Spring Boot 2.x) hosts cannot embed it directly due to the Jakarta namespace split — keep running the watchdog in standalone (sidecar) mode for those systems.
@@ -136,7 +136,6 @@ J.E.S.U.S CI/CD Pipeline
 
 
 ---
-
 
 
 

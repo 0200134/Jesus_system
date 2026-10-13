@@ -23,6 +23,9 @@ public class WatchdogProperties {
     /** Nix flake app used to respawn the target after ejection. */
     private String nixRunTarget = ".#jesus-server-17";
 
+    /** Shared token required by the destructive manual-control endpoint. */
+    private String manualControlToken = "";
+
     /** Actuator health endpoint of the monitored target. */
     private String healthEndpoint = "http://localhost:8080/actuator/health";
 
@@ -72,6 +75,14 @@ public class WatchdogProperties {
 
     public void setNixRunTarget(String nixRunTarget) {
         this.nixRunTarget = nixRunTarget;
+    }
+
+    public String getManualControlToken() {
+        return manualControlToken;
+    }
+
+    public void setManualControlToken(String manualControlToken) {
+        this.manualControlToken = manualControlToken;
     }
 
     public String getHealthEndpoint() {

@@ -23,7 +23,7 @@ Core Principles
 
 Technology Direction
 
-- Java 21
+- Java 17
 - Spring and eGovFrame integration
 - J.E.S.U.S-inspired system monitoring
 - Microgrid outage simulation

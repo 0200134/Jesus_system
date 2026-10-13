@@ -19,6 +19,7 @@ class WatchdogPropertiesTest {
                 "jesus.watchdog.heap-critical-threshold", "0.80",
                 "jesus.watchdog.min-free-disk-space", "1GB",
                 "jesus.watchdog.probe-timeout", "500ms",
+                "jesus.watchdog.manual-control-token", "configured-secret",
                 "jesus.watchdog.target-process-keywords", "my-legacy-app"
         ));
 
@@ -30,6 +31,7 @@ class WatchdogPropertiesTest {
         assertThat(properties.getHeapCriticalThreshold()).isEqualTo(0.80);
         assertThat(properties.getMinFreeDiskSpace().toBytes()).isEqualTo(1024L * 1024 * 1024);
         assertThat(properties.getProbeTimeout()).isEqualTo(Duration.ofMillis(500));
+        assertThat(properties.getManualControlToken()).isEqualTo("configured-secret");
         assertThat(properties.getTargetProcessKeywords()).containsExactly("my-legacy-app");
     }
 
@@ -46,5 +48,6 @@ class WatchdogPropertiesTest {
         assertThat(properties.getProcessCommandKeyword()).isEqualTo("java");
         assertThat(properties.getTargetProcessKeywords()).contains("egov", "tomcat");
         assertThat(properties.getNixRunTarget()).isEqualTo(".#jesus-server-17");
+        assertThat(properties.getManualControlToken()).isEmpty();
     }
 }

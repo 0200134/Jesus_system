@@ -30,6 +30,7 @@ public class DiskIoGuardMonitor {
     private final ProcessLifecycleManager lifecycleManager;
 
     private final FailureCounter failures = new FailureCounter();
+    private boolean diskSpaceIncident;
 
     public DiskIoGuardMonitor(WatchdogProperties properties,
                               VitalsRegistry vitals,
@@ -44,13 +45,7 @@ public class DiskIoGuardMonitor {
      */
     @Scheduled(fixedRate = 10000)
     public void guardFileIoAndDisk() {
-        long usableSpace = new File(".").getUsableSpace();
-
-        // 1. 디스크 용량 고갈 검사 (Disk Full 방어)
-        if (usableSpace < properties.getMinFreeDiskSpace().toBytes()) {
-            vitals.reportDown(COMPONENT, "Free space critically low: " + usableSpace / (1024 * 1024) + " MB");
-            log.error("[⚠️ DISK SPACE WARNING] Free space dangerously low: {} MB", usableSpace / (1024 * 1024));
-            lifecycleManager.ejectAndResurrect("DISK_SPACE_EXHAUSTED");
+        if (!checkDiskSpace(new File(".").getUsableSpace())) {
             return;
         }
 
@@ -77,5 +72,22 @@ public class DiskIoGuardMonitor {
                 failures.reset();
             }
         }
+    }
+
+    boolean checkDiskSpace(long usableSpace) {
+        long minimumFreeSpace = properties.getMinFreeDiskSpace().toBytes();
+        if (usableSpace >= minimumFreeSpace) {
+            diskSpaceIncident = false;
+            return true;
+        }
+
+        long usableMegabytes = usableSpace / (1024 * 1024);
+        vitals.reportDown(COMPONENT, "Free space critically low: " + usableMegabytes + " MB");
+        log.error("[⚠️ DISK SPACE WARNING] Free space dangerously low: {} MB", usableMegabytes);
+        if (!diskSpaceIncident) {
+            diskSpaceIncident = true;
+            lifecycleManager.ejectAndResurrect("DISK_SPACE_EXHAUSTED");
+        }
+        return false;
     }
 }
