@@ -28,7 +28,7 @@ public class JvmDiagnosticsMonitor {
     private final VitalsRegistry vitals;
     private final ProcessLifecycleManager lifecycleManager;
 
-    private int heapPressureCount;
+    private final FailureCounter heapPressureFailures = new FailureCounter();
 
     public JvmDiagnosticsMonitor(WatchdogProperties properties,
                                  VitalsRegistry vitals,
@@ -59,19 +59,18 @@ public class JvmDiagnosticsMonitor {
 
         double usageRatio = (double) heapUsage.getUsed() / maxMemory;
         if (usageRatio >= properties.getHeapCriticalThreshold()) {
-            int count = ++heapPressureCount;
+            int count = heapPressureFailures.recordFailure();
             vitals.reportDown(COMPONENT,
                     "Heap usage at %.1f%% (%d/%d)".formatted(usageRatio * 100, count, properties.getFailureThreshold()));
 
-            if (count >= properties.getFailureThreshold()) {
+            if (heapPressureFailures.hasReached(properties.getFailureThreshold())) {
                 log.warn("[🚨 CRITICAL OOM PREEMPTION] Heap exhausted. Preemptively triggering ejection.");
                 lifecycleManager.ejectAndResurrect("JVM_HEAP_MEMORY_OVERFLOW");
-                heapPressureCount = 0;
+                heapPressureFailures.reset();
             }
         } else {
             // Recover gradually instead of resetting immediately.
-            heapPressureCount = Math.max(0, heapPressureCount - 1);
-            if (heapPressureCount == 0) {
+            if (heapPressureFailures.recoverOne() == 0) {
                 vitals.reportUp(COMPONENT, "Heap usage at %.1f%%".formatted(usageRatio * 100));
             }
         }
