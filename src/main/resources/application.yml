@@ -18,6 +18,8 @@ jesus:
     target-process-keywords: [ egov, tomcat ]
     # Nix flake app respawned after ejection
     nix-run-target: ".#jesus-server-17"
+    # Manual ejection is disabled unless a token is provided through the environment.
+    manual-control-token: ${JESUS_WATCHDOG_MANUAL_CONTROL_TOKEN:}
     # Monitored target endpoints
     health-endpoint: http://localhost:8080/actuator/health
     probe-host: 127.0.0.1
