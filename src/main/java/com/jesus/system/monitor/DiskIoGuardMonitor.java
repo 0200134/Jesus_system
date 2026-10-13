@@ -29,7 +29,7 @@ public class DiskIoGuardMonitor {
     private final VitalsRegistry vitals;
     private final ProcessLifecycleManager lifecycleManager;
 
-    private int ioFailureCount;
+    private final FailureCounter failures = new FailureCounter();
 
     public DiskIoGuardMonitor(WatchdogProperties properties,
                               VitalsRegistry vitals,
@@ -62,19 +62,19 @@ public class DiskIoGuardMonitor {
             } finally {
                 Files.deleteIfExists(probeFile);
             }
-            ioFailureCount = 0;
+            failures.reset();
             vitals.reportUp(COMPONENT, "Disk space and file system writes are nominal.");
         } catch (Exception e) {
-            int failures = ++ioFailureCount;
+            int failureCount = failures.recordFailure();
             vitals.reportDown(COMPONENT,
-                    "File system write failed (%d/%d)".formatted(failures, properties.getIoFailureThreshold()));
+                    "File system write failed (%d/%d)".formatted(failureCount, properties.getIoFailureThreshold()));
             log.error("[❌ I/O BLOCK ERROR] File system write failed or locked ({}/{})",
-                    failures, properties.getIoFailureThreshold());
+                    failureCount, properties.getIoFailureThreshold());
 
-            if (failures >= properties.getIoFailureThreshold()) {
+            if (failures.hasReached(properties.getIoFailureThreshold())) {
                 log.error("[🚨 CRITICAL STORAGE LOCK] File system unresponsive or read-only. Executing ejection.");
                 lifecycleManager.ejectAndResurrect("FILE_SYSTEM_IO_DEADLOCK");
-                ioFailureCount = 0;
+                failures.reset();
             }
         }
     }

@@ -26,7 +26,7 @@ public class WatchdogAgent {
     private final VitalsRegistry vitals;
     private final ProcessLifecycleManager lifecycleManager;
 
-    private int consecutiveFailures;
+    private final FailureCounter failures = new FailureCounter();
 
     public WatchdogAgent(WatchdogProperties properties,
                          HttpVitalsProbe httpProbe,
@@ -45,19 +45,19 @@ public class WatchdogAgent {
     public void monitorAndHeal() {
         try {
             if (httpProbe.isAlive(properties.getHealthEndpoint())) {
-                consecutiveFailures = 0;
+                failures.reset();
                 vitals.reportUp(COMPONENT, "Target actuator endpoint is responsive.");
                 return;
             }
 
-            int failures = ++consecutiveFailures;
+            int failureCount = failures.recordFailure();
             vitals.reportDown(COMPONENT,
-                    "Health endpoint unreachable (%d/%d)".formatted(failures, properties.getFailureThreshold()));
+                    "Health endpoint unreachable (%d/%d)".formatted(failureCount, properties.getFailureThreshold()));
 
-            if (failures >= properties.getFailureThreshold()) {
-                log.warn("[⚠️] Target unresponsive after {} checks. Initiating J.E.S.U.S Protocol...", failures);
+            if (failures.hasReached(properties.getFailureThreshold())) {
+                log.warn("[⚠️] Target unresponsive after {} checks. Initiating J.E.S.U.S Protocol...", failureCount);
                 lifecycleManager.ejectAndResurrect("TARGET_ACTUATOR_UNRESPONSIVE");
-                consecutiveFailures = 0;
+                failures.reset();
             }
         } catch (Exception e) {
             log.error("[❌] Watchdog error: {}", e.getMessage(), e);
